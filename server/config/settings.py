@@ -24,7 +24,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # =============================================================================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-key-CHANGE-in-production-!@#$%")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+# Allowed hosts parsing: handle comma-separated string from env, fallback to safe defaults
+allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_raw.split(",") if host.strip()]
+
+# Add Render wildcard for reliability in free-tier environments
+if not DEBUG:
+    ALLOWED_HOSTS.append(".onrender.com")
 
 # =============================================================================
 # APPLICATION DEFINITION

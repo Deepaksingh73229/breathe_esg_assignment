@@ -26,12 +26,22 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-key-CHANGE-in-production-!@#$%"
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 # Allowed hosts parsing: handle comma-separated string from env, fallback to safe defaults
-allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1")
-ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_raw.split(",") if host.strip()]
+allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", "")
+if allowed_hosts_raw:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_raw.split(",") if host.strip()]
+else:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
 
-# Add Render wildcard for reliability in free-tier environments
-if not DEBUG:
-    ALLOWED_HOSTS.append(".onrender.com")
+# Add reliable production suffixes
+ALLOWED_HOSTS.append(".onrender.com")
+ALLOWED_HOSTS.append(".vercel.app")
+
+# If we are not in DEBUG mode and no specific hosts were provided via env, 
+# we might want to be permissive to avoid deployment blockers, 
+# but usually .onrender.com is enough for Render.
+if not DEBUG and not allowed_hosts_raw:
+    # Optional: ALLOWED_HOSTS.append("*") # Uncomment if still having issues
+    pass
 
 # =============================================================================
 # APPLICATION DEFINITION
@@ -70,9 +80,9 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # MIDDLEWARE
 # =============================================================================
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",       # Must be at the top to handle preflights before anything else
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "corsheaders.middleware.CorsMiddleware",       # Must come before CommonMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -192,14 +202,31 @@ REST_FRAMEWORK = {
 # =============================================================================
 # CORS
 # =============================================================================
+# Support comma-separated origins from FRONTEND_URL or CORS_ALLOWED_ORIGINS env vars
+cors_origins_raw = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("FRONTEND_URL", ""))
 CORS_ALLOWED_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in cors_origins_raw.split(",")
+    if origin.strip()
+]
+
+# Always allow local development and the known production Vercel URL
+default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://breathe-esg-assignment-pi.vercel.app",
 ]
-if os.getenv("FRONTEND_URL"):
-    CORS_ALLOWED_ORIGINS.append(os.getenv("FRONTEND_URL"))
+for origin in default_origins:
+    if origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(origin)
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF Trusted Origins (needed for non-GET requests when using certain auth types or if CSRF is enabled)
+CSRF_TRUSTED_ORIGINS = [origin for origin in CORS_ALLOWED_ORIGINS if origin.startswith("https://")]
+
+# Required for Render/Vercel proxies to recognize HTTPS
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # =============================================================================
 # LOGGING

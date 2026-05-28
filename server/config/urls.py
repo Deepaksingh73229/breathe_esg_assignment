@@ -8,14 +8,23 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+
+# Simple health check/root view
+def health_check(request):
+    return JsonResponse({"status": "healthy", "message": "Breathe ESG API is live"})
 
 # ── Third-party auth views ──────────────────────────────────────────────────
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
-    # Django admin — useful for quick inspection and seeding during development
-    path("admin/", admin.site.urls),
+    # Root & Health
+    path("", health_check),
+    path("health/", health_check),
 
+    # Django admin
+    path("admin/", admin.site.urls),
+...
     path("api/v1/", include([
         # Token login: POST {"username": ..., "password": ...} → {"token": ...}
         path("auth/login/", obtain_auth_token, name="api-token-auth"),

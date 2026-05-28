@@ -24,7 +24,7 @@ urlpatterns = [
 
     # Django admin
     path("admin/", admin.site.urls),
-...
+
     path("api/v1/", include([
         # Token login: POST {"username": ..., "password": ...} → {"token": ...}
         path("auth/login/", obtain_auth_token, name="api-token-auth"),

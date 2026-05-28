@@ -1,0 +1,42 @@
+# Dependency directories
+node_modules/
+venv/
+.venv/
+env/
+.env
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+staticfiles/
+
+# Logs
+*.log
+logs/
+
+# Databases
+*.sqlite3
+*.sqlite3-journal
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+server/media/
+server/logs/
+frontend/.next/
+frontend/node_modules/

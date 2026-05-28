@@ -238,11 +238,13 @@ export interface EmissionFactor {
 
 export interface Facility {
     id: string;
+    organization: string;
     name: string;
     sap_plant_code: string;
     city: string;
     country: string;
     facility_type: string;
+    utility_account_numbers: string[];
     egrid_subregion_effective: string;
 }
 

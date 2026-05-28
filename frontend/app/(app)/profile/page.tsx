@@ -1,15 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, CSSProperties } from 'react';
 import { AuthService, UserProfile } from '@/services/auth.service';
 
 export default function ProfilePage() {
     const [user, setUser] = useState<UserProfile | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-
     const [formData, setFormData] = useState({
         first_name: '',
         last_name: '',
@@ -17,46 +15,42 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        AuthService.getProfile()
-            .then(profile => {
-                setUser(profile);
-                setFormData({
-                    first_name: profile.first_name,
-                    last_name: profile.last_name,
-                    email: profile.email
-                });
-            })
-            .finally(() => setLoading(false));
+        AuthService.getProfile().then(profile => {
+            setUser(profile);
+            setFormData({
+                first_name: profile.first_name,
+                last_name: profile.last_name,
+                email: profile.email
+            });
+        });
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSaving(true);
+        setLoading(true);
         setError(null);
         setSuccess(false);
-
         try {
-            const updated = await AuthService.updateProfile(formData);
-            setUser(updated);
+            await AuthService.updateProfile(formData);
             setSuccess(true);
+            const updated = await AuthService.getProfile();
+            setUser(updated);
         } catch (err: any) {
             setError(err.message || 'Failed to update profile');
         } finally {
-            setSaving(false);
+            setLoading(false);
         }
     };
 
-    if (loading) return <div style={{ padding: '40px' }}>Loading profile...</div>;
+    if (!user) return <div style={{ padding: '40px' }}>Loading profile...</div>;
 
     return (
-        <div style={{ padding: '40px', maxWidth: '800px' }}>
-            <h1 style={{ color: 'var(--color-text-primary)', marginBottom: '8px' }}>Your Profile</h1>
-            <p style={{ color: 'var(--color-text-muted)', marginBottom: '32px' }}>
-                Manage your personal details and account settings.
-            </p>
+        <div style={{ padding: '40px', maxWidth: '1000px' }}>
+            <h1 style={{ color: 'var(--color-text-primary)', marginBottom: '32px' }}>User Profile</h1>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                {/* Profile Form */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '40px' }}>
+                
+                {/* Left Column: Edit Form */}
                 <div style={cardStyle}>
                     <h2 style={cardTitleStyle}>Personal Details</h2>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -79,13 +73,17 @@ export default function ProfilePage() {
                             />
                         </div>
                         <div style={inputGroupStyle}>
-                            <label style={labelStyle}>Email Address</label>
+                            <label style={labelStyle}>Email Address (Login)</label>
                             <input 
                                 type="email"
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 style={inputStyle}
+                                disabled
                             />
+                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                                Email cannot be changed by the user. Contact an administrator.
+                            </p>
                         </div>
 
                         {error && <div style={errorStyle}>{error}</div>}
@@ -93,54 +91,48 @@ export default function ProfilePage() {
 
                         <button 
                             type="submit" 
-                            disabled={saving}
-                            style={{
-                                ...buttonStyle,
-                                cursor: saving ? 'not-allowed' : 'pointer',
-                                opacity: saving ? 0.7 : 1,
-                            }}
+                            disabled={loading}
+                            style={{ ...buttonStyle, opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
                         >
-                            {saving ? 'Saving Changes...' : 'Save Profile'}
+                            {loading ? 'Saving Changes...' : 'Update Profile'}
                         </button>
                     </form>
                 </div>
 
-                {/* Account Info */}
+                {/* Right Column: Account Info */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    
                     <div style={cardStyle}>
-                        <h2 style={cardTitleStyle}>Account Status</h2>
+                        <h2 style={cardTitleStyle}>Security Tokens</h2>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div style={infoItemStyle}>
-                                <div style={infoLabelStyle}>User ID</div>
-                                <div style={infoValueStyle}>{user?.id}</div>
-                            </div>
-                            <div style={infoItemStyle}>
-                                <div style={infoLabelStyle}>Global Role</div>
+                                <div style={infoLabelStyle}>Active API Token</div>
                                 <div style={infoValueStyle}>
-                                    {user?.is_superuser ? (
-                                        <span style={{ color: 'var(--color-emerald)' }}>System Superadmin</span>
-                                    ) : (
-                                        'Standard User'
-                                    )}
+                                    {typeof window !== 'undefined' ? localStorage.getItem('breathe_token')?.substring(0, 8) + '...' : '******'}
                                 </div>
                             </div>
+                            <button 
+                                onClick={() => {
+                                    const token = localStorage.getItem('breathe_token');
+                                    if (token) navigator.clipboard.writeText(token).then(() => alert('Token copied to clipboard'));
+                                }}
+                                style={{ ...buttonStyle, background: 'rgba(255,255,255,0.05)', color: '#fff', marginTop: '0' }}
+                            >
+                                Copy API Token
+                            </button>
                         </div>
                     </div>
 
                     <div style={cardStyle}>
                         <h2 style={cardTitleStyle}>Organizations</h2>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {user?.organizations.map(org => (
-                                <div key={org.id} style={orgItemStyle}>
-                                    <div style={{ fontWeight: 600 }}>{org.name}</div>
-                                    <div style={{ 
-                                        fontSize: '0.7rem', 
-                                        textTransform: 'uppercase', 
-                                        letterSpacing: '0.05em',
-                                        color: org.role === 'admin' ? 'var(--color-emerald)' : 'var(--color-text-muted)'
-                                    }}>
-                                        {org.role}
+                            {user.organizations.map(membership => (
+                                <div key={membership.id} style={orgItemStyle}>
+                                    <div>
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{membership.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>{membership.role}</div>
                                     </div>
+                                    <div style={{ color: 'var(--color-emerald)', fontSize: '0.75rem', fontWeight: 600 }}>Active</div>
                                 </div>
                             ))}
                         </div>
@@ -151,32 +143,32 @@ export default function ProfilePage() {
     );
 }
 
-const cardStyle = {
+const cardStyle: CSSProperties = {
     background: 'var(--color-navy-light)',
     border: '1px solid var(--color-border)',
-    borderRadius: '16px',
-    padding: '24px'
+    borderRadius: '20px',
+    padding: '32px'
 };
 
-const cardTitleStyle = {
+const cardTitleStyle: CSSProperties = {
     fontSize: '1rem',
     fontWeight: 600,
     marginBottom: '20px',
     color: 'var(--color-text-primary)'
 };
 
-const inputGroupStyle = {
+const inputGroupStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     gap: '6px'
 };
 
-const labelStyle = {
+const labelStyle: CSSProperties = {
     fontSize: '0.8rem',
     color: 'var(--color-text-secondary)'
 };
 
-const inputStyle = {
+const inputStyle: CSSProperties = {
     width: '100%',
     background: 'var(--color-navy)',
     border: '1px solid var(--color-border)',
@@ -187,7 +179,7 @@ const inputStyle = {
     outline: 'none',
 };
 
-const buttonStyle = {
+const buttonStyle: CSSProperties = {
     background: 'var(--color-emerald)',
     color: '#080c14',
     border: 'none',
@@ -198,25 +190,25 @@ const buttonStyle = {
     marginTop: '8px'
 };
 
-const infoItemStyle = {
+const infoItemStyle: CSSProperties = {
     paddingBottom: '12px',
     borderBottom: '1px solid var(--color-border)'
 };
 
-const infoLabelStyle = {
+const infoLabelStyle: CSSProperties = {
     fontSize: '0.75rem',
     color: 'var(--color-text-muted)',
     marginBottom: '4px'
 };
 
-const infoValueStyle = {
+const infoValueStyle: CSSProperties = {
     fontSize: '0.9rem',
     color: 'var(--color-text-primary)',
     wordBreak: 'break-all',
     fontFamily: 'var(--font-mono)'
 };
 
-const orgItemStyle = {
+const orgItemStyle: CSSProperties = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -226,7 +218,7 @@ const orgItemStyle = {
     border: '1px solid var(--color-border)'
 };
 
-const errorStyle = {
+const errorStyle: CSSProperties = {
     padding: '10px',
     background: 'rgba(239,68,68,0.1)',
     color: '#ef4444',
@@ -234,7 +226,7 @@ const errorStyle = {
     fontSize: '0.85rem'
 };
 
-const successStyle = {
+const successStyle: CSSProperties = {
     padding: '10px',
     background: 'rgba(0,232,122,0.1)',
     color: 'var(--color-emerald)',

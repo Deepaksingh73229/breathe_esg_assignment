@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, CSSProperties } from 'react';
 import { OrganizationService } from '@/services/organization.service';
 import { AuthService, UserProfile } from '@/services/auth.service';
 import { useRouter } from 'next/navigation';
@@ -156,7 +156,6 @@ export default function AdminPage() {
                                 value={formData.admin_password}
                                 onChange={(e) => setFormData({ ...formData, admin_password: e.target.value })}
                                 required
-                                placeholder="••••••••"
                                 style={inputStyle}
                             />
                         </div>
@@ -167,7 +166,6 @@ export default function AdminPage() {
                                 value={formData.admin_first_name}
                                 onChange={(e) => setFormData({ ...formData, admin_first_name: e.target.value })}
                                 required
-                                placeholder="Jane"
                                 style={inputStyle}
                             />
                         </div>
@@ -178,7 +176,6 @@ export default function AdminPage() {
                                 value={formData.admin_last_name}
                                 onChange={(e) => setFormData({ ...formData, admin_last_name: e.target.value })}
                                 required
-                                placeholder="Doe"
                                 style={inputStyle}
                             />
                         </div>
@@ -186,15 +183,15 @@ export default function AdminPage() {
                 </div>
 
                 {error && <div style={errorStyle}>{error}</div>}
-                {success && <div style={successStyle}>Organization and Admin User registered successfully!</div>}
+                {success && <div style={successStyle}>Organization and Admin created successfully!</div>}
 
                 <button 
                     type="submit" 
                     disabled={loading}
                     style={{
                         ...buttonStyle,
-                        cursor: loading ? 'not-allowed' : 'pointer',
                         opacity: loading ? 0.7 : 1,
+                        cursor: loading ? 'not-allowed' : 'pointer'
                     }}
                 >
                     {loading ? 'Processing...' : 'Register Organization & Create Admin'}
@@ -204,32 +201,32 @@ export default function AdminPage() {
     );
 }
 
-const sectionStyle = {
+const sectionStyle: CSSProperties = {
     background: 'var(--color-navy-light)',
     border: '1px solid var(--color-border)',
     borderRadius: '16px',
     padding: '32px'
 };
 
-const sectionTitleStyle = {
+const sectionTitleStyle: CSSProperties = {
     fontSize: '1.1rem',
     fontWeight: 600,
     marginBottom: '24px',
     color: 'var(--color-text-primary)'
 };
 
-const inputGroupStyle = {
+const inputGroupStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px'
 };
 
-const labelStyle = {
+const labelStyle: CSSProperties = {
     fontSize: '0.85rem',
     color: 'var(--color-text-secondary)'
 };
 
-const inputStyle = {
+const inputStyle: CSSProperties = {
     background: 'var(--color-navy)',
     border: '1px solid var(--color-border)',
     borderRadius: '8px',
@@ -239,7 +236,7 @@ const inputStyle = {
     outline: 'none',
 };
 
-const buttonStyle = {
+const buttonStyle: CSSProperties = {
     background: 'var(--color-emerald)',
     color: '#080c14',
     border: 'none',
@@ -250,7 +247,7 @@ const buttonStyle = {
     transition: 'transform 0.1s',
 };
 
-const errorStyle = {
+const errorStyle: CSSProperties = {
     padding: '12px',
     background: 'rgba(239,68,68,0.1)',
     border: '1px solid rgba(239,68,68,0.2)',
@@ -259,7 +256,7 @@ const errorStyle = {
     fontSize: '0.9rem'
 };
 
-const successStyle = {
+const successStyle: CSSProperties = {
     padding: '12px',
     background: 'rgba(0,232,122,0.1)',
     border: '1px solid rgba(0,232,122,0.2)',

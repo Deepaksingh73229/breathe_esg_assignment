@@ -1,71 +1,28 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { IngestionResult } from '@/lib/api';
-import { IngestionService } from '@/services/ingestion.service';
+
+import React, { useState, useRef, useEffect, CSSProperties } from 'react';
+import { api, IngestionRun, IngestionResult } from '@/lib/api';
 import { AuthService, UserProfile } from '@/services/auth.service';
 
-const SOURCE_TYPES = [
-    {
-        id: 'sap',
-        label: 'SAP — Fuel & Procurement',
-        desc: 'Flat-file CSV export from SAP MM (MB51 / ME2M report). German or English headers supported.',
-        icon: '⚙',
-        accept: '.csv',
-        color: '#fbbf24',
-        details: ['German headers (Buchungskreis, Werk, Menge)', 'DD.MM.YYYY and YYYYMMDD dates', 'European number format (1.234,56)', 'Auto fuel-type classification'],
-    },
-    {
-        id: 'utility',
-        label: 'Utility — Electricity',
-        desc: 'Green Button CSV export from utility portals. Handles non-calendar billing periods.',
-        icon: '⚡',
-        accept: '.csv',
-        color: '#4da6ff',
-        details: ['Non-calendar billing periods', 'Multiple meters per facility', 'Estimated read detection', 'eGRID subregion routing'],
-    },
-    {
-        id: 'travel',
-        label: 'Travel — Concur / Navan',
-        desc: 'JSON export from corporate travel platforms. Calculates flight distances via Haversine.',
-        icon: '✈',
-        accept: '.json',
-        color: '#a78bfa',
-        details: ['Flight distance via Haversine + 8% uplift', 'DEFRA cabin-class factors (RFI incl.)', 'Hotel nights & ground transport', 'Concur v4 segment type codes'],
-    },
+const SOURCES = [
+    { id: 'sap', label: 'SAP ERP — Fuel & Procurement', icon: '🏭', accept: '.csv', color: '#008eff' },
+    { id: 'utility', label: 'Utility Portal — Electricity', icon: '⚡', accept: '.csv', color: '#ffb900' },
+    { id: 'travel', label: 'Concur/Navan — Corporate Travel', icon: '✈️', accept: '.json', color: '#8e44ad' },
 ];
 
-interface PipelineResult {
-    status: string;
-    total_rows: number;
-    valid_rows: number;
-    invalid_rows: number;
-    suspicious_rows: number;
-}
-
 export default function IngestPage() {
-    const [sourceType, setSourceType] = useState('sap');
+    const [selectedSource, setSelectedSource] = useState(SOURCES[0]);
     const [file, setFile] = useState<File | null>(null);
-    const [user, setUser] = useState<UserProfile | null>(null);
-    const [selectedOrgId, setSelectedOrgId] = useState('');
     const [dragging, setDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [result, setResult] = useState<(IngestionResult & { pipeline_result: PipelineResult }) | null>(null);
-    const [history, setHistory] = useState<any[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [result, setResult] = useState<IngestionResult | null>(null);
+    const [user, setUser] = useState<UserProfile | null>(null);
+    const [selectedOrgId, setSelectedOrgId] = useState('');
+    const [history, setHistory] = useState<IngestionRun[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
-    const [error, setError] = useState('');
-    const fileRef = useRef<HTMLInputElement>(null);
 
-    const loadHistory = useCallback(async () => {
-        setLoadingHistory(true);
-        try {
-            const data = await IngestionService.getIngestionRuns();
-            setHistory(data.results);
-        } catch (e) {
-            console.error('Failed to load ingestion history', e);
-        } finally {
-            setLoadingHistory(false);
-        }
-    }, []);
+    const fileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         AuthService.getProfile().then(profile => {
@@ -73,127 +30,114 @@ export default function IngestPage() {
             if (profile.organizations.length > 0) {
                 setSelectedOrgId(profile.organizations[0].id);
             }
-        }).catch(() => {
-            setError('Please log in to ingest data.');
         });
-        loadHistory();
-    }, [loadHistory]);
-
-    const selectedSource = SOURCE_TYPES.find(s => s.id === sourceType)!;
-
-    const onDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setDragging(false);
-        const f = e.dataTransfer.files[0];
-        if (f) setFile(f);
+        fetchHistory();
     }, []);
 
-    async function handleUpload() {
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const res = await api.getIngestionRuns();
+            setHistory(res.results);
+        } catch (err) {
+            console.error('Failed to load history', err);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const onDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragging(false);
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile) setFile(droppedFile);
+    };
+
+    const handleUpload = async () => {
         if (!file || !selectedOrgId) return;
         setUploading(true);
-        setError('');
+        setError(null);
         setResult(null);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('source_type', selectedSource.id);
+        formData.append('organization_id', selectedOrgId);
+
         try {
-            const fd = new FormData();
-            fd.append('raw_file', file);
-            fd.append('source_type', sourceType);
-            fd.append('organization', selectedOrgId);
-            fd.append('ingestion_method', 'csv_upload');
-            const res = await IngestionService.uploadFile(fd) as any;
+            const res = await api.uploadFile(formData);
             setResult(res);
-            loadHistory(); // Refresh history after successful upload
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Upload failed');
+            setFile(null);
+            fetchHistory();
+        } catch (err: any) {
+            setError(err.message || 'Ingestion failed');
         } finally {
             setUploading(false);
         }
-    }
+    };
 
     const pr = result?.pipeline_result;
-    const successRate = pr && pr.total_rows > 0 ? Math.round((pr.valid_rows / pr.total_rows) * 100) : 0;
+    const successRate = pr ? Math.round((pr.valid_rows / pr.total_rows) * 100) : 0;
 
     return (
-        <div style={{ padding: '32px 36px', maxWidth: '900px' }}>
-            {/* Header */}
-            <div style={{ marginBottom: '36px' }}>
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>Data Pipeline</p>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.03em', marginBottom: '8px' }}>
-                    Ingest <span style={{ color: 'var(--color-emerald)' }}>Data</span>
-                </h1>
-                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-                    Upload source files — SAP exports, utility CSVs, or travel JSON. Raw data is preserved immutably with SHA-256 checksums.
-                </p>
-            </div>
+        <div style={{ padding: '40px', maxWidth: '800px' }}>
+            <h1 style={{ color: 'var(--color-text-primary)', marginBottom: '8px' }}>Data Ingestion</h1>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '32px' }}>
+                Upload raw exports from your source systems. Our pipeline will automatically normalize and calculate emissions.
+            </p>
 
-            {/* Source type selector */}
-            <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    Source Type
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                    {SOURCE_TYPES.map(src => (
-                        <button key={src.id} onClick={() => setSourceType(src.id)} style={{
-                            padding: '16px', borderRadius: '14px', textAlign: 'left', cursor: 'pointer',
-                            background: sourceType === src.id ? `${src.color}12` : 'var(--color-navy)',
-                            border: `1px solid ${sourceType === src.id ? `${src.color}40` : 'var(--color-border)'}`,
+            {/* Source Selector */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
+                {SOURCES.map(source => (
+                    <button
+                        key={source.id}
+                        onClick={() => { setSelectedSource(source); setFile(null); setError(null); }}
+                        style={{
+                            padding: '20px 12px',
+                            borderRadius: '16px',
+                            background: selectedSource.id === source.id ? 'var(--color-navy-light)' : 'transparent',
+                            border: `2px solid ${selectedSource.id === source.id ? source.color : 'var(--color-border)'}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '12px',
                             transition: 'all 0.2s',
                         }}>
-                            <div style={{ fontSize: '1.4rem', marginBottom: '8px' }}>{src.icon}</div>
-                            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: sourceType === src.id ? src.color : 'var(--color-text-primary)', marginBottom: '4px' }}>
-                                {src.label}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                                {src.desc}
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Source details */}
-            <div style={{ marginBottom: '24px', padding: '14px 18px', borderRadius: '12px', background: 'var(--color-slate)', border: '1px solid var(--color-border)' }}>
-                <p style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Parser Capabilities
-                </p>
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                    {selectedSource.details.map(d => (
-                        <span key={d} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                            <span style={{ color: 'var(--color-emerald)', fontSize: '0.7rem' }}>✓</span> {d}
+                        <span style={{ fontSize: '1.5rem' }}>{source.icon}</span>
+                        <span style={{ 
+                            fontSize: '0.75rem', 
+                            fontWeight: 700, 
+                            color: selectedSource.id === source.id ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                            textAlign: 'center'
+                        }}>
+                            {source.label.split(' — ')[0]}
                         </span>
-                    ))}
-                </div>
+                    </button>
+                ))}
             </div>
 
-            {/* Target Organisation */}
+            {/* Org Selector (hidden if only one org) */}
             {user && user.organizations.length > 1 && (
                 <div style={{ marginBottom: '24px' }}>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                        Target Organization
-                    </label>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px' }}>Target Organization</label>
                     <select 
                         value={selectedOrgId}
-                        onChange={e => setSelectedOrgId(e.target.value)}
-                        style={{ 
+                        onChange={(e) => setSelectedOrgId(e.target.value)}
+                        style={{
                             width: '100%',
-                            background: 'var(--color-navy)',
+                            background: 'var(--color-navy-light)',
                             border: '1px solid var(--color-border)',
-                            borderRadius: '8px',
+                            color: '#fff',
                             padding: '10px 14px',
-                            color: 'var(--color-text-primary)',
-                            fontSize: '0.9rem',
-                            outline: 'none',
+                            borderRadius: '10px',
+                            outline: 'none'
                         }}
                     >
                         {user.organizations.map(org => (
                             <option key={org.id} value={org.id}>{org.name}</option>
                         ))}
                     </select>
-                </div>
-            )}
-
-            {user && user.organizations.length === 1 && (
-                <div style={{ marginBottom: '24px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                    Ingesting data for: <strong style={{ color: 'var(--color-text-primary)' }}>{user.organizations[0].name}</strong>
                 </div>
             )}
 
@@ -344,7 +288,7 @@ export default function IngestPage() {
     );
 }
 
-const statBoxStyle = { background: 'var(--color-navy-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--color-border)' };
-const statLabelStyle = { fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' };
-const statValueStyle = { fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-mono)' };
-const btnStyle = { width: '100%', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer' };
+const statBoxStyle: CSSProperties = { background: 'var(--color-navy-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--color-border)' };
+const statLabelStyle: CSSProperties = { fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' };
+const statValueStyle: CSSProperties = { fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-mono)' };
+const btnStyle: CSSProperties = { width: '100%', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer' };

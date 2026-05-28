@@ -73,33 +73,36 @@ The API follows RESTful principles and is versioned under `/api/v1/`.
 | `GET /api/v1/factors/` | Search the active emission factor library |
 | `GET /api/v1/audit/` | Access the system-wide audit trail |
 
-## Deployment (Koyeb - No Docker)
+## Deployment (Render - Free Tier)
 
-This project is configured for easy deployment to **Koyeb** using their native Python Buildpack.
+This project is configured for deployment to **Render** using their free web service tier.
 
 ### Configuration Files
-- `requirements.txt`: Auto-generated from `uv` for buildpack compatibility.
-- `Procfile`: Defines the Gunicorn execution command.
+- `requirements.txt`: Auto-generated from `uv` for Render compatibility.
+- `Procfile`: Tells Render how to run the server.
 - `runtime.txt`: Specifies Python 3.12.
 
 ### Deployment Steps
 
 1. **GitHub**: Push this repository to your GitHub account.
-2. **Database**: Create a free PostgreSQL instance on [Neon.tech](https://neon.tech) or [Supabase](https://supabase.com). Copy the `DATABASE_URL`.
-3. **Koyeb Console**:
+2. **Database**: Create a free PostgreSQL instance on **[Neon.tech](https://neon.tech)**. Copy the connection string.
+3. **Render Console**:
    - Create a new **Web Service**.
    - Select your GitHub repository.
-   - **Workind Directory**: Set to `server`.
-   - **Build Strategy**: Select **Buildpacks**.
+   - **Root Directory**: Set to `server`.
    - **Environment Variables**:
-     - `DATABASE_URL`: Your Postgres connection string.
+     - `DATABASE_URL`: Your Neon connection string.
      - `DJANGO_SECRET_KEY`: A long random string.
      - `DEBUG`: `False`
-     - `ALLOWED_HOSTS`: `your-app-name.koyeb.app`
-   - **Expose Port**: 8000 (Gunicorn is configured for this).
+     - `ALLOWED_HOSTS`: `your-app-name.onrender.com`
+   - **Build Command**: `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+   - **Start Command**: `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`
 
-4. **Migrations & Factors**:
-   Once deployed, you can use the Koyeb "Console" (CLI or Web) to run:
+4. **Keep-Awake Trick**: 
+   - After deployment, go to [UptimeRobot](https://uptimerobot.com/) and set a monitor to ping your URL every 5 minutes. This prevents the "spin-down" delay for the recruiter.
+
+5. **Initialize**:
+   Use Render's "Shell" tab to run:
    ```bash
    python manage.py migrate
    python manage.py seed_factors
